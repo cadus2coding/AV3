@@ -1,0 +1,639 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Unova Map · Pokédex & Spawns</title>
+<style>
+:root{
+  --bg:#0b0f19; --p:#131a2a; --p2:#1b2438; --tx:#f0f4fc;
+  --mu:#8a99b8; --ac:#38bdf8; --ac2:#f43f5e; --ln:#283552; --hit:#facc15;
+  --sea:#081220;
+  color-scheme:dark; box-sizing:border-box;
+}
+*{box-sizing:border-box} html,body{height:100%;margin:0}
+body{
+  background:var(--bg); color:var(--tx);
+  font:13px/1.45 'Segoe UI', system-ui, -apple-system, sans-serif;
+  display:flex; flex-direction:column; overflow:hidden;
+}
+
+/* Header Limpo */
+header{
+  display:flex; flex-wrap:wrap; gap:12px; align-items:center; justify-content:space-between;
+  padding:10px 18px; background:var(--p); border-bottom:1px solid var(--ln);
+  box-shadow:0 4px 15px rgba(0,0,0,0.4); z-index:20;
+}
+.brand{display:flex; align-items:center; gap:8px; font-weight:800; font-size:16px; letter-spacing:0.08em; color:#fff;}
+.brand span{background:var(--ac); color:#071324; padding:2px 7px; border-radius:4px; font-size:11px; font-weight:900;}
+input,button{
+  background:var(--p2); color:var(--tx); border:1px solid var(--ln);
+  border-radius:6px; padding:7px 12px; font:inherit; outline:none; transition:0.15s;
+}
+input:hover,input:focus,button:hover{border-color:var(--ac);}
+button{cursor:pointer; font-weight:600;}
+#q{flex:1; min-width:200px; max-width:420px;}
+
+main{flex:1; display:flex; min-height:0; position:relative;}
+
+/* Área do Mapa */
+#map{
+  flex:1; position:relative; background:var(--sea); min-width:0;
+  background-image:radial-gradient(circle at center, #0f213a 0%, #060d18 100%);
+}
+svg{width:100%; height:100%; display:block; touch-action:none; cursor:grab;}
+svg:active{cursor:grabbing;}
+
+/* Bolinhas Interativas sobre o Mapa */
+.node-group{cursor:pointer; transition:opacity 0.2s;}
+.node-group.dim{opacity:0.25;}
+.node-hit-area{fill:transparent; stroke:none;}
+.node-shape{
+  fill:rgba(15, 23, 42, 0.85); stroke:var(--ac); stroke-width:2.5;
+  transition:all 0.15s ease; transform-box:fill-box; transform-origin:center;
+  filter:drop-shadow(0 2px 4px rgba(0,0,0,0.75));
+}
+.node-group:hover .node-shape, .node-group.sel .node-shape{
+  fill:var(--ac); stroke:#fff; stroke-width:3; transform:scale(1.28);
+  filter:drop-shadow(0 0 10px var(--ac));
+}
+.node-group.hit .node-shape{
+  fill:var(--hit); stroke:#fff; stroke-width:3; transform:scale(1.32);
+  filter:drop-shadow(0 0 12px var(--hit));
+}
+.node-label{
+  fill:#fff; font-size:11px; font-weight:800; pointer-events:none;
+  paint-order:stroke; stroke:#060d18; stroke-width:3.5px; letter-spacing:0.02em;
+}
+
+/* Controles Flutuantes */
+.zc{position:absolute; right:14px; top:14px; display:flex; flex-direction:column; gap:6px; z-index:10;}
+.zc button{width:34px; height:34px; padding:0; display:grid; place-items:center; font-size:16px; background:var(--p); box-shadow:0 2px 8px rgba(0,0,0,0.5);}
+
+.legend{
+  position:absolute; left:14px; bottom:14px; background:rgba(19,26,42,0.9);
+  border:1px solid var(--ln); border-radius:8px; padding:7px 12px; font-size:11px;
+  display:flex; gap:12px; align-items:center; backdrop-filter:blur(4px); z-index:10;
+}
+.leg-item{display:flex; align-items:center; gap:5px; color:var(--mu);}
+.dot{width:10px; height:10px; border-radius:50%; display:inline-block;}
+.upload-btn{
+  pointer-events:auto; background:var(--p2); border:1px solid var(--ln);
+  color:var(--tx); padding:3px 8px; border-radius:4px; cursor:pointer; font-size:11px;
+}
+.upload-btn:hover{border-color:var(--ac); color:var(--ac);}
+
+/* Painel Lateral Pokédex */
+#panel{
+  width:420px; background:var(--p); border-left:1px solid var(--ln);
+  overflow-y:auto; padding:16px; display:flex; flex-direction:column; gap:8px;
+}
+.grab{display:none;}
+.loc-header{border-bottom:1px solid var(--ln); padding-bottom:10px; margin-bottom:4px;}
+.loc-header h2{margin:0; font-size:19px; color:#fff; display:flex; align-items:center; justify-content:space-between;}
+.loc-sub{display:flex; justify-content:space-between; align-items:center; margin-top:4px; font-size:12px; color:var(--mu);}
+
+.g{
+  margin:10px 0 4px; font-size:11px; font-weight:800; letter-spacing:0.08em;
+  color:var(--ac); text-transform:uppercase; display:flex; align-items:center; gap:6px;
+}
+.g::after{content:""; flex:1; height:1px; background:var(--ln);}
+
+/* Cards dos Pokémon */
+details.c{
+  background:var(--p2); border:1px solid var(--ln); border-radius:8px;
+  transition:border-color 0.15s; overflow:hidden;
+}
+details.c:hover{border-color:#475569;}
+details.c[open]{border-color:var(--ac);}
+details>summary{cursor:pointer; list-style:none;}
+details>summary::-webkit-details-marker{display:none;}
+details.c>summary{display:flex; align-items:center; gap:10px; padding:8px 10px; flex-wrap:wrap;}
+
+.sp-box{
+  width:52px; height:52px; border-radius:8px; display:grid; place-items:center;
+  flex:none; border:1px solid rgba(255,255,255,0.12); position:relative; overflow:hidden;
+}
+.sp-box img{
+  width:56px; height:56px; object-fit:contain; image-rendering:pixelated;
+  filter:drop-shadow(0 2px 3px rgba(0,0,0,0.65));
+}
+
+.ty{
+  display:inline-block; padding:1px 6px; border-radius:4px; font-size:10px;
+  font-weight:800; color:#111; text-transform:uppercase;
+}
+.rate-box{text-align:right; font-size:12px;}
+.rate-val{font-weight:800; color:#fff; font-size:13px;}
+
+.tags{display:flex; gap:6px; width:100%; margin-top:2px; flex-wrap:wrap;}
+.badge{
+  display:inline-flex; align-items:center; gap:4px; padding:2px 7px;
+  border-radius:4px; font-size:10px; font-weight:700; background:rgba(0,0,0,0.35);
+  border:1px solid var(--ln); color:var(--mu);
+}
+.badge.ver{border-color:#6366f1; color:#a5b4fc;}
+.badge.sea{border-color:#eab308; color:#fde047;}
+
+.bd{padding:0 12px 12px; border-top:1px solid rgba(255,255,255,0.05); margin-top:2px;}
+.ab{
+  display:inline-block; border:1px solid var(--ln); border-radius:4px;
+  background:rgba(0,0,0,0.25); padding:3px 8px; margin:2px 4px 2px 0; cursor:help; font-size:12px;
+}
+.ab em{
+  background:var(--hit); color:#111; border-radius:3px; padding:0 4px;
+  margin-left:5px; font-style:normal; font-size:9px; font-weight:900;
+}
+.mv{
+  display:inline-block; background:var(--bg); border:1px solid var(--ln);
+  border-radius:4px; padding:2px 7px; margin:2px 3px 2px 0; font-size:11px;
+}
+.ev{display:flex; flex-wrap:wrap; align-items:center; gap:6px; font-size:12px; margin-top:4px;}
+.st{
+  background:var(--bg); border:1px solid var(--ln); border-radius:6px;
+  padding:4px 8px; display:inline-flex; flex-direction:column; align-items:center; gap:2px;
+}
+.st img{width:38px; height:38px; object-fit:contain; image-rendering:pixelated;}
+.st.me{background:rgba(56,189,248,0.18); color:#fff; font-weight:800; border-color:var(--ac);}
+.ar{color:var(--mu); font-size:10px; text-align:center; line-height:1.1;}
+
+@media(max-width:850px){
+  main{flex-direction:column;}
+  #panel{
+    position:fixed; left:0; right:0; bottom:0; width:auto; max-height:58vh;
+    border:0; border-top:2px solid var(--ac); border-radius:16px 16px 0 0;
+    transform:translateY(105%); transition:transform 0.25s ease;
+    box-shadow:0 -10px 30px rgba(0,0,0,0.8); z-index:30;
+  }
+  #panel.on{transform:none;} #panel.big{max-height:88vh;}
+  .grab{display:block; width:44px; height:4px; border-radius:2px; background:var(--mu); margin:0 auto 6px;}
+  .legend{display:none;}
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">UNOVA <span>MAP</span></div>
+  <input id="q" type="search" placeholder="Buscar Pokémon, tipo ou habilidade...">
+</header>
+
+<main>
+  <div id="map">
+    <svg id="svg" viewBox="0 0 1024 686"></svg>
+    <div class="zc">
+      <button id="zi" title="Zoom +">+</button>
+      <button id="zo" title="Zoom −">−</button>
+      <button id="zr" title="Centralizar">⟲</button>
+    </div>
+    <div class="legend">
+      <div class="leg-item"><span class="dot" style="background:rgba(15,23,42,0.85);border:2px solid #38bdf8"></span> Localidade</div>
+      <div class="leg-item"><span class="dot" style="background:#facc15;border:2px solid #fff"></span> Encontrado na Busca</div>
+      <label class="upload-btn" title="Selecione a imagem do mapa se ela não carregar automaticamente">
+        🖼️ Carregar Imagem do Mapa
+        <input type="file" id="fi" accept="image/*" hidden>
+      </label>
+    </div>
+  </div>
+  <aside id="panel"></aside>
+</main>
+
+<script>
+/* Proporção exata da imagem oficial de Unova (1024 x 686) */
+const W=1024, H=686, $ = s => document.querySelector(s);
+
+/* Imagem local (salve a imagem enviada como image_b4fc6c.jpg na mesma pasta) + Fallback oficial online */
+const LOCAL_MAP = 'image_b4fc6c.jpg';
+const ONLINE_FALLBACK = 'https://archives.bulbagarden.net/media/upload/f/fc/Unova_B2W2_alt.png';
+
+/* Repositório PokeAPI/sprites (Gen V Black-White) */
+const SPRITE_BASE = 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/versions/generation-v/black-white/';
+const SPRITE_FALLBACK = 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/';
+const getSprite = id => `${SPRITE_BASE}${id}.png`;
+
+const T={normal:'#a8a77a',bug:'#a6b91a',electric:'#f7d02c',ground:'#e2bf65',rock:'#b6a136',psychic:'#f95587',fire:'#ee8130',ghost:'#735797',grass:'#7ac74c',dark:'#705746',flying:'#a98ff3',steel:'#b7b7ce',dragon:'#6f35fc',poison:'#a33ea1',fighting:'#c22e28',water:'#6390f0',ice:'#96d9d6'};
+const M={grass:['🌿','Grama Comum'],dark:['🌑','Grama Escura'],shake:['✨','Grama Tremendo'],ripple:['💧','Água Ondulando'],dust:['💨','Nuvem de Poeira'],surf:['🌊','Surf'],rod:['🎣','Super Rod'],static:['⭐','Gift / Static'],cave:['⛰️','Caverna']};
+const SEA=['Primavera','Verão','Outono','Inverno'];
+const SEA_ICONS=['🌸','☀️','🍂','❄️'];
+
+/* ===== DADOS DOS POKÉMON ===== */
+const PK={
+  patrat:{d:504,n:'Patrat',t:['normal'],a:['Run Away','Keen Eye','Analytic']},
+  lillipup:{d:506,n:'Lillipup',t:['normal'],a:['Vital Spirit','Pickup','Run Away']},
+  purrloin:{d:509,n:'Purrloin',t:['dark'],a:['Limber','Unburden','Prankster']},
+  pidove:{d:519,n:'Pidove',t:['normal','flying'],a:['Big Pecks','Super Luck','Rivalry']},
+  audino:{d:531,n:'Audino',t:['normal'],a:['Healer','Regenerator','Klutz']},
+  venipede:{d:543,n:'Venipede',t:['bug','poison'],a:['Poison Point','Swarm','Quick Feet']},
+  sewaddle:{d:540,n:'Sewaddle',t:['bug','grass'],a:['Swarm','Chlorophyll','Overcoat']},
+  cottonee:{d:546,n:'Cottonee',t:['grass'],a:['Prankster','Infiltrator','Chlorophyll']},
+  petilil:{d:548,n:'Petilil',t:['grass'],a:['Chlorophyll','Own Tempo','Leaf Guard']},
+  sandile:{d:551,n:'Sandile',t:['ground','dark'],a:['Intimidate','Moxie','Anger Point']},
+  darumaka:{d:554,n:'Darumaka',t:['fire'],a:['Hustle',0,'Inner Focus']},
+  maractus:{d:556,n:'Maractus',t:['grass'],a:['Water Absorb','Chlorophyll','Storm Drain']},
+  sigilyph:{d:561,n:'Sigilyph',t:['psychic','flying'],a:['Wonder Skin','Magic Guard','Tinted Lens']},
+  joltik:{d:595,n:'Joltik',t:['bug','electric'],a:['Compound Eyes','Unnerve','Swarm']},
+  ferroseed:{d:597,n:'Ferroseed',t:['grass','steel'],a:['Iron Barbs']},
+  klink:{d:599,n:'Klink',t:['steel'],a:['Plus','Minus','Clear Body']},
+  tynamo:{d:602,n:'Tynamo',t:['electric'],a:['Levitate']},
+  boldore:{d:525,n:'Boldore',t:['rock'],a:['Sturdy',0,'Sand Force']},
+  timburr:{d:532,n:'Timburr',t:['fighting'],a:['Guts','Sheer Force','Iron Fist']},
+  cubchoo:{d:613,n:'Cubchoo',t:['ice'],a:['Snow Cloak',0,'Rattled']},
+  druddigon:{d:621,n:'Druddigon',t:['dragon'],a:['Rough Skin','Sheer Force','Mold Breaker']},
+  golett:{d:622,n:'Golett',t:['ground','ghost'],a:['Iron Fist','Klutz','No Guard']},
+  deino:{d:633,n:'Deino',t:['dark','dragon'],a:['Hustle']},
+  mareep:{d:179,n:'Mareep',t:['electric'],a:['Static',0,'Plus']},
+  riolu:{d:447,n:'Riolu',t:['fighting'],a:['Steadfast','Inner Focus','Prankster']},
+  psyduck:{d:54,n:'Psyduck',t:['water'],a:['Damp','Cloud Nine','Swift Swim']}
+};
+
+const AB={
+  'Run Away':'Foge garantidamente de batalhas selvagens.',
+  'Keen Eye':'Impede perda de precisão.',
+  'Analytic':'Aumenta poder em 30% se agir por último.',
+  'Vital Spirit':'Impede o Pokémon de dormir.',
+  'Pickup':'Pode encontrar itens após a batalha.',
+  'Limber':'Impede paralisia.',
+  'Unburden':'Dobra Speed ao usar ou perder o item.',
+  'Prankster':'Golpes de status ganham +1 de prioridade.',
+  'Big Pecks':'Impede redução de Defense.',
+  'Super Luck':'Aumenta chance de acerto crítico.',
+  'Rivalry':'Mais dano em oponentes do mesmo gênero.',
+  'Healer':'Pode curar status de aliados.',
+  'Regenerator':'Recupera 1/3 do HP ao sair de batalha.',
+  'Klutz':'Não pode usar efeitos de itens segurados.',
+  'Poison Point':'30% de chance de envenenar ao receber contato.',
+  'Swarm':'Golpes Bug +50% com HP abaixo de 1/3.',
+  'Quick Feet':'Speed +50% quando afetado por status.',
+  'Chlorophyll':'Dobra Speed sob sol forte.',
+  'Overcoat':'Imune a dano de clima e golpes de pó.',
+  'Infiltrator':'Ignora Reflect, Light Screen e Safeguard.',
+  'Own Tempo':'Impede confusão.',
+  'Leaf Guard':'Impede status sob sol forte.',
+  'Intimidate':'Reduz Attack do oponente ao entrar.',
+  'Moxie':'Aumenta Attack ao nocautear um alvo.',
+  'Anger Point':'Maximiza Attack ao sofrer golpe crítico.',
+  'Hustle':'Attack +50%, precisão -20% em golpes físicos.',
+  'Inner Focus':'Impede flinch.',
+  'Water Absorb':'Recupera HP ao ser atingido por golpes Water.',
+  'Storm Drain':'Atrai golpes Water e sobe Sp. Atk.',
+  'Wonder Skin':'Reduz precisão de golpes de status inimigos.',
+  'Magic Guard':'Só sofre dano direto de ataques.',
+  'Tinted Lens':'Dobra dano de golpes pouco efetivos.',
+  'Compound Eyes':'Aumenta precisão dos golpes em 30%.',
+  'Unnerve':'Impede oponente de comer Berries.',
+  'Iron Barbs':'Causa dano ao atacante em golpes de contato.',
+  'Plus':'Sp. Atk +50% com aliado Plus ou Minus.',
+  'Minus':'Sp. Atk +50% com aliado Plus ou Minus.',
+  'Clear Body':'Impede redução de stats por oponentes.',
+  'Levitate':'Imune a golpes do tipo Ground.',
+  'Sturdy':'Sobrevive com 1 HP se estiver com vida cheia.',
+  'Sand Force':'Rock/Ground/Steel +30% na tempestade de areia.',
+  'Guts':'Attack +50% quando afetado por status.',
+  'Sheer Force':'Golpes com efeito extra +30%, anulando o efeito.',
+  'Iron Fist':'Golpes de soco ficam 20% mais fortes.',
+  'Snow Cloak':'Aumenta evasão durante granizo.',
+  'Rattled':'Speed sobe ao sofrer golpe Bug, Ghost ou Dark.',
+  'Rough Skin':'Fere quem usar golpe de contato.',
+  'Mold Breaker':'Ignora habilidades defensivas do alvo.',
+  'No Guard':'Todos os golpes acertam ambos os lados.',
+  'Static':'Pode paralisar quem usar golpe de contato.',
+  'Steadfast':'Speed sobe ao sofrer flinch.',
+  'Damp':'Impede Self-Destruct e Explosion.',
+  'Cloud Nine':'Anula efeitos de clima.',
+  'Swift Swim':'Dobra Speed na chuva.'
+};
+
+/* ===== LEARNSETS ===== */
+const L0={
+  patrat:'1 Tackle|3 Leer|6 Bite|9 Detect|12 Sand-Attack|15 Crunch|18 Hypnosis',
+  lillipup:'1 Tackle|1 Leer|3 Odor Sleuth|6 Bite|9 Helping Hand|12 Take Down|15 Work Up',
+  purrloin:'1 Scratch|3 Growl|6 Assist|10 Sand-Attack|12 Fury Swipes|15 Pursuit|19 Torment',
+  pidove:'1 Gust|4 Growl|8 Leer|11 Quick Attack|15 Air Cutter|18 Roost|22 Detect',
+  audino:'1 Pound|1 Growl|5 Helping Hand|10 Refresh|15 Double Slap|20 Attract|25 Secret Power',
+  venipede:'1 Defense Curl|1 Rollout|4 Poison Sting|7 Screech|10 Pursuit|13 Protect|16 Poison Tail|19 Bug Bite',
+  sewaddle:'1 Tackle|3 String Shot|6 Bug Bite|9 Razor Leaf|12 Struggle Bug|15 Endure|18 Mega Drain',
+  cottonee:'1 Absorb|4 Growth|8 Leech Seed|10 Stun Spore|13 Mega Drain|17 Cotton Spore|19 Razor Leaf',
+  petilil:'1 Absorb|4 Growth|8 Leech Seed|10 Sleep Powder|13 Mega Drain|17 Synthesis|19 Magical Leaf',
+  sandile:'1 Leer|1 Rage|4 Bite|8 Sand-Attack|11 Torment|15 Crunch|18 Sand Tomb|22 Swagger',
+  darumaka:'1 Tackle|3 Rage|6 Bite|9 Fire Fang|12 Headbutt|15 Uproar|18 Belly Drum',
+  maractus:'1 Absorb|1 Growth|3 Poison Sting|7 Sweet Scent|11 Acupressure|15 Mega Drain|19 Needle Arm|23 Synthesis',
+  sigilyph:'1 Gust|1 Miracle Eye|4 Hypnosis|8 Psywave|11 Tailwind|14 Whirlwind|18 Psybeam|21 Air Cutter',
+  joltik:'1 String Shot|1 Thunder Wave|5 Bug Bite|10 Spider Web|14 Electroweb|18 Screech|23 Discharge|27 Pin Missile',
+  ferroseed:'1 Tackle|1 Harden|5 Pin Missile|8 Curse|12 Metal Claw|16 Mirror Shot|20 Iron Defense|24 Gyro Ball',
+  klink:'1 Vice Grip|1 Charge|4 Thunder Shock|7 Screech|10 Bind|14 Spark|18 Metal Sound|22 Gear Grind',
+  tynamo:'1 Tackle|1 Thunder Wave|3 Spark|9 Charge Beam|15 Acid|21 Discharge',
+  boldore:'1 Tackle|1 Harden|1 Sand-Attack|1 Headbutt|14 Rock Blast|17 Mud-Slap|20 Iron Defense|25 Smack Down|28 Power Gem|31 Rock Slide',
+  timburr:'1 Pound|4 Leer|7 Focus Energy|10 Bide|13 Low Kick|16 Rock Smash|19 Wake-Up Slap|22 Chip Away|25 Bulk Up',
+  cubchoo:'1 Powder Snow|1 Growl|4 Bide|7 Icy Wind|10 Headbutt|13 Endure|16 Frost Breath|20 Brine|24 Slash',
+  druddigon:'1 Leer|1 Scratch|5 Hone Claws|9 Bite|13 Scary Face|18 Dragon Rage|21 Slash|25 Crunch|27 Dragon Claw',
+  golett:'1 Pound|1 Astonish|1 Defense Curl|5 Mud-Slap|9 Rollout|13 Shadow Punch|17 Iron Defense|21 Mega Punch|25 Magnitude|30 Dynamic Punch',
+  deino:'1 Tackle|1 Dragon Rage|4 Focus Energy|9 Bite|12 Headbutt|17 Dragon Breath|20 Roar|25 Crunch|32 Dragon Pulse',
+  mareep:'1 Tackle|1 Growl|4 Thunder Wave|8 Thunder Shock|11 Cotton Spore|15 Charge|18 Take Down',
+  riolu:'1 Quick Attack|1 Foresight|1 Endure|6 Counter|11 Feint|15 Force Palm',
+  psyduck:'1 Water Sport|1 Scratch|4 Tail Whip|8 Water Gun|11 Disable|15 Confusion'
+};
+const LS={}; for(const k in L0) LS[k] = L0[k].split('|').map(x => { const i = x.indexOf(' '); return [+x.slice(0,i), x.slice(i+1)] });
+
+/* ===== EVOLUÇÕES ===== */
+const EV={
+  patrat:['504|Patrat','505|Watchog|Nv. 20'],
+  lillipup:['506|Lillipup','507|Herdier|Nv. 16','508|Stoutland|Nv. 32'],
+  purrloin:['509|Purrloin','510|Liepard|Nv. 20'],
+  pidove:['519|Pidove','520|Tranquill|Nv. 21','521|Unfezant|Nv. 32'],
+  audino:['531|Audino'],
+  venipede:['543|Venipede','544|Whirlipede|Nv. 22','545|Scolipede|Nv. 30'],
+  sewaddle:['540|Sewaddle','541|Swadloon|Nv. 20','542|Leavanny|♥ Amizade'],
+  cottonee:['546|Cottonee','547|Whimsicott|☀️ Sun Stone'],
+  petilil:['548|Petilil','549|Lilligant|☀️ Sun Stone'],
+  sandile:['551|Sandile','552|Krokorok|Nv. 29','553|Krookodile|Nv. 40'],
+  darumaka:['554|Darumaka','555|Darmanitan|Nv. 35'],
+  maractus:['556|Maractus'],
+  sigilyph:['561|Sigilyph'],
+  joltik:['595|Joltik','596|Galvantula|Nv. 36'],
+  ferroseed:['597|Ferroseed','598|Ferrothorn|Nv. 40'],
+  klink:['599|Klink','600|Klang|Nv. 38','601|Klinklang|Nv. 49'],
+  tynamo:['602|Tynamo','603|Eelektrik|Nv. 39','604|Eelektross|⚡ Thunder Stone'],
+  boldore:['524|Roggenrola','525|Boldore|Nv. 25','526|Gigalith|⇄ Troca'],
+  timburr:['532|Timburr','533|Gurdurr|Nv. 25','534|Conkeldurr|⇄ Troca'],
+  cubchoo:['613|Cubchoo','614|Beartic|Nv. 37'],
+  druddigon:['621|Druddigon'],
+  golett:['622|Golett','623|Golurk|Nv. 43'],
+  deino:['633|Deino','634|Zweilous|Nv. 50','635|Hydreigon|Nv. 64'],
+  mareep:['179|Mareep','180|Flaaffy|Nv. 15','181|Ampharos|Nv. 30'],
+  riolu:['447|Riolu','448|Lucario|♥ Amizade (Dia)'],
+  psyduck:['54|Psyduck','55|Golduck|Nv. 33']
+};
+
+/* ===== BOLINHAS INTERATIVAS POSICIONADAS NA ARTWORK OFICIAL (1024x686) =====
+   spawn: [espécie, método, taxa%, nvMin, nvMax, [estações], [versões]] */
+const LOC=[
+  {id:'r1', n:'Route 1', x:876, y:568, r:11, sp:[
+    ['patrat','grass',50,2,4, null, ['B','W']],
+    ['lillipup','grass',50,2,4, null, ['B','W']],
+    ['patrat','grass',50,55,58, null, ['B2','W2']],
+    ['lillipup','grass',50,55,58, null, ['B2','W2']]
+  ]},
+  {id:'r2', n:'Route 2', x:876, y:490, r:11, sp:[
+    ['patrat','grass',40,4,7, null, ['B','W']],
+    ['lillipup','grass',40,4,7, null, ['B','W']],
+    ['purrloin','grass',20,4,7, null, ['B','W']]
+  ]},
+  {id:'r3', n:'Route 3', x:812, y:442, r:11, sp:[
+    ['patrat','grass',30,8,11],
+    ['lillipup','grass',30,8,11],
+    ['purrloin','grass',20,8,11],
+    ['pidove','grass',20,8,11],
+    ['audino','shake',80,8,11]
+  ]},
+  {id:'pf', n:'Pinwheel Forest', x:738, y:492, r:14, sp:[
+    ['venipede','grass',30,14,17],
+    ['sewaddle','grass',30,14,17],
+    ['pidove','grass',20,14,17],
+    ['cottonee','grass',20,14,17, null, ['B','B2']],
+    ['petilil','grass',20,14,17, null, ['W','W2']]
+  ]},
+  {id:'floccesy', n:'Floccesy Ranch', x:126, y:515, r:13, sp:[
+    ['mareep','grass',25,5,7, null, ['B2','W2']],
+    ['riolu','grass',5,5,7, null, ['B2','W2']],
+    ['psyduck','grass',20,5,7, null, ['B2','W2']],
+    ['lillipup','grass',25,5,7, null, ['B2','W2']]
+  ]},
+  {id:'r4', n:'Route 4', x:512, y:415, r:11, sp:[
+    ['sandile','grass',45,15,18],
+    ['darumaka','grass',45,15,18]
+  ]},
+  {id:'dr', n:'Desert Resort', x:425, y:392, r:14, sp:[
+    ['sandile','grass',40,20,22],
+    ['darumaka','grass',30,20,22],
+    ['maractus','grass',20,20,22],
+    ['sigilyph','grass',10,20,22]
+  ]},
+  {id:'cc', n:'Chargestone Cave', x:265, y:338, r:13, sp:[
+    ['joltik','cave',35,22,25],
+    ['ferroseed','cave',35,22,25],
+    ['klink','cave',20,22,25],
+    ['tynamo','cave',10,22,25]
+  ]},
+  {id:'tm', n:'Twist Mountain', x:412, y:192, r:14, sp:[
+    ['boldore','cave',50,28,31],
+    ['timburr','cave',30,28,31],
+    ['cubchoo','cave',20,28,31,[3], null]
+  ]},
+  {id:'dt', n:'Dragonspiral Tower', x:482, y:112, r:13, sp:[
+    ['golett','cave',50,30,33],
+    ['druddigon','cave',50,30,33]
+  ]},
+  {id:'vr', n:'Victory Road', x:198, y:168, r:14, sp:[
+    ['boldore','cave',50,37,40],
+    ['deino','cave',20,38,40]
+  ]},
+  {id:'gc', n:'Giant Chasm', x:892, y:135, r:13, sp:[
+    ['cubchoo','grass',20,47,50,[3], null],
+    ['audino','shake',80,47,50]
+  ]}
+];
+
+const HINT=`
+<div style="text-align:center; padding:32px 14px; color:var(--mu);">
+  <div style="font-size:34px; margin-bottom:8px;">🗺️</div>
+  <b style="color:#fff; font-size:15px;">Região de Unova</b>
+  <p style="margin:8px 0 14px;">Passe o mouse sobre qualquer bolinha no mapa para ver todos os Pokémon que aparecem naquela rota ou caverna, incluindo versões e estações.</p>
+  <div style="background:var(--p2); border:1px solid var(--ln); border-radius:6px; padding:10px; text-align:left; font-size:12px;">
+    <b>Dicas rápidas:</b><br>
+    • <b>Clique</b> em uma bolinha para fixar o painel lateral.<br>
+    • Use o <b>scroll do mouse</b> para zoom e arraste para mover o mapa.<br>
+    • Digite o nome de um Pokémon na barra acima para iluminar onde ele aparece.
+  </div>
+</div>`;
+
+/* ===== RENDERIZAÇÃO DO MAPA ===== */
+let hov=null, pin=null, vb=[0,0,W,H], moved=false, d=null, last='';
+const svg=$('#svg');
+
+function buildMapSVG(){
+  const nodesSVG = LOC.map(l => `
+    <g class="node-group" data-id="${l.id}">
+      <circle class="node-hit-area" cx="${l.x}" cy="${l.y}" r="${l.r + 10}"/>
+      <circle class="node-shape" cx="${l.x}" cy="${l.y}" r="${l.r}"/>
+      <text class="node-label" x="${l.x}" y="${l.y - l.r - 6}" text-anchor="middle">${l.n}</text>
+    </g>
+  `).join('');
+
+  svg.innerHTML = `
+    <image id="bg" href="${LOCAL_MAP}" width="${W}" height="${H}" preserveAspectRatio="xMidYMid meet" />
+    ${nodesSVG}
+  `;
+
+  /* Se a imagem local não estiver na pasta ainda, tenta o fallback online automaticamente */
+  const imgEl = $('#bg');
+  imgEl.addEventListener('error', () => {
+    if (imgEl.getAttribute('href') !== ONLINE_FALLBACK) {
+      imgEl.setAttribute('href', ONLINE_FALLBACK);
+    }
+  });
+}
+
+buildMapSVG();
+
+const q = () => $('#q').value.trim().toLowerCase();
+const hit = e => {
+  const k = q(), p = PK[e[0]];
+  return !!k && (p.n.toLowerCase().includes(k) || p.t.some(t => t.includes(k)) || p.a.some(a => a && a.toLowerCase().includes(k)));
+};
+
+function draw(){
+  const k = q(), cur = pin || hov;
+  document.querySelectorAll('.node-group').forEach(g => {
+    const l_data = LOC.find(x => x.id == g.dataset.id);
+    const s = l_data.sp;
+    let cls = 'node-group';
+    if (g.dataset.id == cur) cls += ' sel';
+    if (k) cls += s.some(hit) ? ' hit' : ' dim';
+    g.setAttribute('class', cls);
+  });
+}
+
+function card(e){
+  const [k,m,r,a,b,seasons,versions] = e;
+  const p = PK[k], ls = LS[k];
+  const mv = L => ls.filter(x => x[0] <= L).slice(-4).map(x => `<span class="mv">${x[1]}</span>`).join('');
+  const c1 = T[p.t[0]], c2 = T[p.t[1] || p.t[0]];
+  
+  const seaStr = seasons ? seasons.map(i => `${SEA_ICONS[i]} ${SEA[i]}`).join(', ') : '🌸 ☀️ 🍂 ❄️ Todas';
+  const verStr = versions ? versions.join(' / ') : 'Black · White · B2 · W2';
+
+  return `<details class="c"${hit(e) ? ' open' : ''}>
+    <summary>
+      <span class="sp-box" style="background:linear-gradient(135deg,${c1}55,${c2}55)">
+        <img src="${getSprite(p.d)}" alt="${p.n}" loading="lazy" onerror="this.onerror=null;this.src='${SPRITE_FALLBACK}${p.d}.png'">
+      </span>
+      <div style="flex:1;">
+        <b style="font-size:14px; color:#fff;">${p.n} <span class="mu" style="font-weight:normal;">#${p.d}</span></b>
+        <div style="margin-top:2px;">${p.t.map(t => `<span class="ty" style="background:${T[t]}">${t}</span>`).join(' ')}</div>
+      </div>
+      <div class="rate-box">
+        <div class="rate-val">${M[m][0]} ${r}%</div>
+        <div class="mu">Nv. ${a}${b>a ? '–'+b : ''}</div>
+      </div>
+      <div class="tags">
+        <span class="badge ver" title="Versões em que aparece">🎮 ${verStr}</span>
+        <span class="badge sea" title="Estações em que aparece">📅 ${seaStr}</span>
+      </div>
+    </summary>
+    <div class="bd">
+      <div class="g">Habilidades Possíveis</div>
+      ${p.a.map((x,i) => x ? `<span class="ab" title="${AB[x]||''}">${x}${i==2 ? '<em>HA</em>' : ''}</span>` : '').join('')}
+      
+      <div class="g">Moveset Selvagem (Por Nível)</div>
+      <div style="margin-bottom:4px;"><span class="mu">Nv. ${a}:</span> ${mv(a)}</div>
+      ${b>a ? `<div><span class="mu">Nv. ${b}:</span> ${mv(b)}</div>` : ''}
+      <details style="margin-top:6px;"><summary class="mu" style="text-decoration:underline;">Ver learnset completo</summary><div style="margin-top:4px;">${ls.map(x => `<span class="mv"><b>Nv.${x[0]}</b> ${x[1]}</span>`).join('')}</div></details>
+      
+      <div class="g">Linha Evolutiva</div>
+      <div class="ev">
+        ${EV[k].map((s,i) => {
+          const [dex, n, r2] = s.split('|');
+          return (i ? `<span class="ar">${r2}<br>➔</span>` : '') +
+            `<span class="st${n==p.n ? ' me' : ''}">
+              <img src="${getSprite(dex)}" alt="${n}" loading="lazy" onerror="this.onerror=null;this.src='${SPRITE_FALLBACK}${dex}.png'">
+              <span>${n}</span>
+            </span>`;
+        }).join('')}
+      </div>
+    </div>
+  </details>`;
+}
+
+function show(){
+  const P=$('#panel'), id = pin || hov, l = LOC.find(x => x.id == id), key = [id, pin?1:0, q()].join();
+  P.classList.toggle('on', !!l);
+  if(key == last) return;
+  last = key;
+
+  if(!l){ P.innerHTML = HINT; return; }
+
+  const s = l.sp;
+  let h = `<div class="grab"></div>
+  <div class="loc-header">
+    <h2>${l.n} ${pin ? '<button class="x" style="font-size:11px; padding:3px 8px; background:var(--ac2); border:none; color:#fff;">✕ Soltar</button>' : ''}</h2>
+    <div class="loc-sub">
+      <span>Todos os encontros da localidade</span>
+      <span>${pin ? '📌 Rota fixada' : 'Clique na bolinha para fixar'}</span>
+    </div>
+  </div>`;
+
+  if(!s.length){
+    h += '<p class="mu" style="padding:12px 0;">Nenhum Pokémon cadastrado nesta localidade.</p>';
+  }
+
+  const gs = {};
+  s.forEach(e => (gs[e[1]] = gs[e[1]] || []).push(e));
+
+  for(const m in gs){
+    h += `<div class="g">${M[m][0]} ${M[m][1]}</div>`;
+    gs[m].sort((a,b) => b[2] - a[2]).forEach(e => h += card(e));
+  }
+  P.innerHTML = h;
+}
+
+const go = () => { draw(); show(); };
+
+$('#panel').onclick = e => {
+  if(e.target.closest('.x')){ pin = null; go(); }
+  else if(e.target.closest('.grab')) $('#panel').classList.toggle('big');
+};
+$('#q').oninput = go;
+addEventListener('keydown', e => { if(e.key == 'Escape'){ pin = null; go(); } });
+
+/* Pan & Zoom */
+const pt = (x,y) => { const p = svg.createSVGPoint(); p.x = x; p.y = y; return p.matrixTransform(svg.getScreenCTM().inverse()); };
+const setVB = () => svg.setAttribute('viewBox', vb.join(' '));
+
+function zoom(f,x,y){
+  const r = svg.getBoundingClientRect(), p = pt(x ?? r.left + r.width/2, y ?? r.top + r.height/2);
+  const w = Math.min(W*1.3, Math.max(W/8, vb[2]*f)), g = w/vb[2];
+  vb = [p.x - (p.x - vb[0])*g, p.y - (p.y - vb[1])*g, w, vb[3]*g];
+  setVB();
+}
+
+svg.addEventListener('wheel', e => { e.preventDefault(); zoom(e.deltaY < 0 ? 0.85 : 1.18, e.clientX, e.clientY); }, {passive:false});
+svg.addEventListener('pointerdown', e => { d = {x:e.clientX, y:e.clientY, v:[...vb]}; moved = false; });
+addEventListener('pointermove', e => {
+  if(!d) return;
+  const r = svg.getBoundingClientRect(), s = Math.max(d.v[2]/r.width, d.v[3]/r.height);
+  const dx = e.clientX - d.x, dy = e.clientY - d.y;
+  if(Math.abs(dx) + Math.abs(dy) > 5) moved = true;
+  if(moved){ vb = [d.v[0] - dx*s, d.v[1] - dy*s, d.v[2], d.v[3]]; setVB(); }
+});
+addEventListener('pointerup', () => { d = null; });
+$('#zi').onclick = () => zoom(0.8);
+$('#zo').onclick = () => zoom(1.25);
+$('#zr').onclick = () => { vb = [0,0,W,H]; setVB(); };
+
+/* Interação com Bolinhas do Mapa */
+svg.addEventListener('pointerover', e => {
+  if(d && moved) return;
+  const g = e.target.closest('.node-group');
+  hov = g ? g.dataset.id : null;
+  go();
+});
+svg.addEventListener('pointerleave', () => { hov = null; go(); });
+svg.addEventListener('click', e => {
+  if(moved) return;
+  const g = e.target.closest('.node-group');
+  pin = g && g.dataset.id != pin ? g.dataset.id : null;
+  go();
+});
+
+/* Carregar imagem manual caso tenha outro nome no PC */
+$('#fi').onchange = e => {
+  const f = e.target.files[0]; if(!f) return;
+  const r = new FileReader();
+  r.onload = () => $('#bg').setAttribute('href', r.result);
+  r.readAsDataURL(f);
+};
+
+go();
+</script>
+</body>
+</html>
